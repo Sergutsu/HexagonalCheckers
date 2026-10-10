@@ -1,6 +1,13 @@
-# HEX — Three-player Hexagonal Checkers
+# HEX — Three-player Hexagonal Checkers and Triad Dominion
 
 A flat, futuristic, **board-first PixiJS game** on one 397-hex board with **12 hexes along each side**. Mint, Coral, and Lilac share the arena. No build step, no account, no network requests, and no runtime installation.
+
+Two modes share the board:
+
+- **Checkers** (`index.html`): the original three-player hex checkers.
+- **Triad Dominion** (`dominion.html`): a three-player hex Reversi and checkers hybrid. See below.
+
+Play online at **https://sergutsu.github.io/HexagonalCheckers/** (published automatically, see [Publishing](#publishing-to-github-pages)).
 
 ## Play immediately
 
@@ -27,6 +34,22 @@ There is **no `npm install` or build command** needed. The server listens on `0.
 - **Undo** restores the most recent human turn, including subsequent bot replies. With only bots, it undoes the last turn and pauses them.
 - **Pause** stops bots, not human players. Opening a panel or dialog also holds bots until it closes.
 - Scroll or pinch to zoom, drag to pan, and use Fit to restore the full board. While editing, mouse dragging paints; Alt-drag or middle-drag pans.
+
+## Triad Dominion
+
+Open **Triad Dominion** from the mode switch in the header (or go to `dominion.html`).
+
+Every turn you take **one** action:
+
+- **Drop** a new piece on any empty hex. Every run of opposing pieces trapped between it and another of your pieces flips to your colour, in all six directions at once. Dropped pieces never crown.
+- **Move** one of your pieces: step to an adjacent empty hex, or jump an adjacent enemy into the empty hex beyond. The jumped piece is removed. Men move **forward only**, toward the other sides; kings move in all six directions.
+- A man that walks or jumps onto an edge hex outside its own home edge becomes a **King**.
+
+Each colour's home is one of the three corners the checkers mode uses. Its home edge is the five outer hexes around that corner (tinted on the board), and each colour starts with three pieces there.
+
+**Winning.** The last colour with pieces wins. Choose **Quick** in *New match* for a faster game: the first colour to hold all seven central hexes at the end of its turn wins. A match also ends when the board fills or 40 turns pass without a drop or capture; the most pieces wins, and a tie is a draw.
+
+Controls: `D` drop, `M` move, click or tap to act (in Move mode, pick a piece, then a highlighted hex), `U` undo, `Space` pause bots, `0` fit, `H` rules.
 
 ## Customize the initial position
 
@@ -56,14 +79,23 @@ The match, custom formation, controllers, settings, and recent undo history save
 ## Implementation
 
 - `index.html` / `styles.css` — responsive, board-only game shell, controller dock, setup editor, and accessible dialogs.
+- `scripts/dominion-rules.js` — Triad Dominion rules: drops and flips, forward-only men, kings, win conditions, and the bot.
+- `scripts/dominion-app.js` — Triad Dominion board, controls, persistence, and bot scheduling.
+- `dominion.html` / `dominion.css` — the Triad Dominion page and its additions to the shared styling.
 - `scripts/app.js` — PixiJS rendering, pointer / touch controls, animation, optional synthesized move sounds, persistence, and bot scheduling.
 - `scripts/rules.js` — browser / Node-compatible rules engine, board geometry, move validation, chained captures, promotion, and a small heuristic bot. No dependencies.
 - `vendor/pixi.min.js` — pinned **PixiJS 8.6.6**, MIT license in `vendor/PIXI-LICENSE.txt`.
 - `assets/fonts` — locally bundled Inter and Space Grotesk, with their SIL Open Font licenses.
 - `server.cjs` — optional dependency-free static server.
-- `tests/` — geometry, rules, save / restore, bot simulations, JavaScript syntax, and static-asset integrity tests.
+- `tests/` — geometry, rules, save / restore, bot simulations, JavaScript syntax, static-asset integrity tests, and Triad Dominion rules, page, and publishing tests.
 
 The board uses axial coordinates `(q, r)`, with `max(|q|, |r|, |q+r|) ≤ 11`. No coordinate labels, decorative lines, or move paths are drawn over the board. Board tiles and pawns are flat vector graphics rendered entirely by PixiJS.
+
+## Publishing to GitHub Pages
+
+`.github/workflows/pages.yml` publishes the site on every push to `main`. The workflow runs `npm test` first and deploys only if the tests pass. It copies just the static site files (`index.html`, `dominion.html`, the CSS, `assets/`, `scripts/`, `vendor/`) into a `_site` artifact, so tests and tooling are never published. Run it manually from the Actions tab with **Run workflow** to publish any branch.
+
+Pages must be set to **Source: GitHub Actions** in the repository settings (`Settings → Pages`). The workflow's test step checks that every asset the pages reference is included in the staged site.
 
 ## Test
 
