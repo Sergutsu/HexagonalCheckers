@@ -1,0 +1,13 @@
+{
+  "name": "hex-checkers",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Board-first three-player hexagonal checkers in PixiJS. No build step or runtime dependencies.",
+  "scripts": {
+    "start": "node server.cjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
