@@ -5,6 +5,11 @@
   const R = window.HexRules;
   const $ = (id) => document.getElementById(id);
   const all = (selector) => [...document.querySelectorAll(selector)];
+  // Every listener is tied to the current match so the mode switcher can
+  // tear the checkers board down when the player opens Triad Dominion.
+  let activeSignal = null;
+  const on = (target, type, handler, options = {}) =>
+    target.addEventListener(type, handler, { ...options, signal: activeSignal });
   const STORAGE_KEY = "hex-checkers-v1";
   const UNIT = 24;
   const SQRT3 = Math.sqrt(3);
@@ -28,6 +33,7 @@
     constructor(controller) {
       this.controller = controller;
       this.host = $("board-host");
+      this.destroyed = false;
       this.zoom = 1;
       this.pan = { x: 0, y: 0 };
       this.hover = null;
@@ -50,6 +56,15 @@
         preference: "webgl",
         powerPreference: "low-power",
       });
+      if (this.destroyed) {
+        try {
+          this.app.destroy({ removeView: true }, { children: true });
+        } catch (_) {
+          /* The player switched modes while the context was starting. */
+        }
+        this.app = null;
+        return;
+      }
       this.app.canvas.setAttribute("aria-hidden", "true");
       this.host.appendChild(this.app.canvas);
       this.root = new PIXI.Container();
@@ -394,7 +409,7 @@
         const b = canvas.getBoundingClientRect();
         return { x: e.clientX - b.left, y: e.clientY - b.top };
       };
-      canvas.addEventListener("pointerdown", (e) => {
+      on(canvas, "pointerdown", (e) => {
         if (e.button !== 0 && e.button !== 1) return;
         this.host.focus({ preventScroll: true });
         const p = local(e);
@@ -438,7 +453,7 @@
           }
         }
       });
-      canvas.addEventListener("pointermove", (e) => {
+      on(canvas, "pointermove", (e) => {
         const p = local(e);
         const pressed = this.pointers.get(e.pointerId);
         if (pressed) {
@@ -504,23 +519,22 @@
         if (this.pointers.size < 2) this.pinch = null;
         this.updateCursor();
       };
-      canvas.addEventListener("pointerup", (e) => finish(e, false));
-      canvas.addEventListener("pointercancel", (e) => finish(e, true));
-      canvas.addEventListener("pointerleave", () => {
+      on(canvas, "pointerup", (e) => finish(e, false));
+      on(canvas, "pointercancel", (e) => finish(e, true));
+      on(canvas, "pointerleave", () => {
         if (!this.pointers.size) {
           this.hover = null;
           this.updateHighlights();
         }
       });
-      canvas.addEventListener("contextmenu", (e) => {
+      on(canvas, "contextmenu", (e) => {
         e.preventDefault();
         const p = local(e),
           cell = this.cellAt(p.x, p.y);
         if (cell && this.controller.editing) this.controller.paint(cell, true);
         else this.controller.clearSelection();
       });
-      canvas.addEventListener(
-        "wheel",
+      on(canvas, "wheel",
         (e) => {
           e.preventDefault();
           this.setZoom(
@@ -530,10 +544,10 @@
         },
         { passive: false },
       );
-      canvas.addEventListener("dblclick", (e) => {
+      on(canvas, "dblclick", (e) => {
         if (e.altKey) this.fit();
       });
-      this.host.addEventListener("keydown", (e) => {
+      on(this.host, "keydown", (e) => {
         const directions = {
           ArrowLeft: [-1, 0],
           ArrowRight: [1, 0],
@@ -566,10 +580,37 @@
           );
         }
       });
-      this.host.addEventListener("blur", () => {
+      on(this.host, "blur", () => {
         this.keyboardCell = null;
         this.updateHighlights();
       });
+    }
+
+    // Releases the WebGL context and the canvas so the other mode can reuse
+    // the same board host.
+    destroy() {
+      this.destroyed = true;
+      if (this.resizeObserver) {
+        this.resizeObserver.disconnect();
+        this.resizeObserver = null;
+      }
+      this.stopAnimations();
+      if (this.app) {
+        try {
+          this.app.destroy({ removeView: true }, { children: true });
+        } catch (_) {
+          /* The context may already be gone; nothing left to release. */
+        }
+        this.app = null;
+      }
+      this.graphics.clear();
+      this.tweens = [];
+      this.root = null;
+      this.tiles = null;
+      this.highlights = null;
+      this.pieceLayer = null;
+      this.ghost = null;
+      $("loading").hidden = false;
     }
   }
 
@@ -589,6 +630,7 @@
       this.paused = false;
       this.busy = false;
       this.ready = false;
+      this.destroyed = false;
       this.panel = null;
       this.editing = false;
       this.brush = 0;
@@ -604,6 +646,7 @@
     async init() {
       try {
         await this.view.init();
+        if (this.destroyed) return;
         this.ready = true;
         if (this.game.chainId)
           this.selected =
@@ -614,6 +657,7 @@
         this.view.syncPieces();
         this.scheduleBot();
       } catch (error) {
+        if (this.destroyed) return;
         console.error("Unable to initialize the board:", error);
         $("loading").classList.add("error");
         $("loading").textContent =
@@ -1323,38 +1367,38 @@
     }
 
     bindUI() {
-      $("brand-link").addEventListener("click", (e) => {
+      on($("brand-link"), "click", (e) => {
         e.preventDefault();
         if (this.ready) this.view.fit();
       });
-      $("help-button").addEventListener("click", () =>
+      on($("help-button"), "click", () =>
         this.openDialog("help-dialog"),
       );
-      $("edit-button").addEventListener("click", () =>
+      on($("edit-button"), "click", () =>
         this.openPanel("editor"),
       );
-      $("settings-button").addEventListener("click", () =>
+      on($("settings-button"), "click", () =>
         this.openPanel("settings"),
       );
-      $("settings-edit").addEventListener("click", () =>
+      on($("settings-edit"), "click", () =>
         this.openPanel("editor"),
       );
-      $("close-panel").addEventListener("click", () => this.closePanel());
-      $("cancel-edit").addEventListener("click", () => this.closePanel());
-      $("undo-button").addEventListener("click", () => this.undo());
-      $("pause-button").addEventListener("click", () => this.togglePause());
-      $("new-game-button").addEventListener("click", () => this.newGame());
-      $("zoom-in").addEventListener("click", () => {
+      on($("close-panel"), "click", () => this.closePanel());
+      on($("cancel-edit"), "click", () => this.closePanel());
+      on($("undo-button"), "click", () => this.undo());
+      on($("pause-button"), "click", () => this.togglePause());
+      on($("new-game-button"), "click", () => this.newGame());
+      on($("zoom-in"), "click", () => {
         if (this.ready) this.view.setZoom(this.view.zoom * 1.25);
       });
-      $("zoom-out").addEventListener("click", () => {
+      on($("zoom-out"), "click", () => {
         if (this.ready) this.view.setZoom(this.view.zoom / 1.25);
       });
-      $("fit-view").addEventListener("click", () => {
+      on($("fit-view"), "click", () => {
         if (this.ready) this.view.fit();
       });
       all(".seat-type").forEach((b) =>
-        b.addEventListener("click", () => {
+        on(b, "click", () => {
           const team = Number(b.dataset.team);
           this.setController(
             team,
@@ -1363,72 +1407,72 @@
         }),
       );
       for (let team = 0; team < 3; team++)
-        $(`controller-${team}`).addEventListener("change", (e) =>
+        on($(`controller-${team}`), "change", (e) =>
           this.setController(team, e.target.value),
         );
       all("[data-pace]").forEach((b) =>
-        b.addEventListener("click", () => {
+        on(b, "click", () => {
           this.settings.pace = b.dataset.pace;
           this.updateUI();
           this.save();
           this.scheduleBot();
         }),
       );
-      $("sound-toggle").addEventListener("change", (e) => {
+      on($("sound-toggle"), "change", (e) => {
         this.settings.sound = e.target.checked;
         this.playSound("move");
         this.save();
       });
-      $("motion-toggle").addEventListener("change", (e) => {
+      on($("motion-toggle"), "change", (e) => {
         this.settings.reducedMotion = e.target.checked;
         this.save();
       });
       all("[data-brush]").forEach((b) =>
-        b.addEventListener("click", () => {
+        on(b, "click", () => {
           this.brush = Number(b.dataset.brush);
           this.updateEditor();
         }),
       );
       all("[data-piece]").forEach((b) =>
-        b.addEventListener("click", () => {
+        on(b, "click", () => {
           this.superBrush = b.dataset.piece === "super";
           if (this.brush === "erase") this.brush = 0;
           this.updateEditor();
         }),
       );
-      $("erase-brush").addEventListener("click", () => {
+      on($("erase-brush"), "click", () => {
         this.brush = "erase";
         this.updateEditor();
       });
       all("[data-preset]").forEach((b) =>
-        b.addEventListener("click", () => this.applyPreset(b.dataset.preset)),
+        on(b, "click", () => this.applyPreset(b.dataset.preset)),
       );
-      $("clear-board").addEventListener("click", () => {
+      on($("clear-board"), "click", () => {
         this.editPieces.clear();
         this.updateEditor();
         this.view.syncPieces();
       });
-      $("start-custom").addEventListener("click", () => this.startCustom());
-      $("mobile-start-custom").addEventListener("click", () =>
+      on($("start-custom"), "click", () => this.startCustom());
+      on($("mobile-start-custom"), "click", () =>
         this.startCustom(),
       );
-      $("export-setup").addEventListener("click", () => this.exportSetup());
-      $("import-setup").addEventListener("click", () => {
+      on($("export-setup"), "click", () => this.exportSetup());
+      on($("import-setup"), "click", () => {
         $("setup-file").value = "";
         $("setup-file").click();
       });
-      $("setup-file").addEventListener("change", (e) =>
+      on($("setup-file"), "change", (e) =>
         this.importSetup(e.target.files[0]),
       );
       all("[data-close-dialog]").forEach((b) =>
-        b.addEventListener("click", () => $(b.dataset.closeDialog).close()),
+        on(b, "click", () => $(b.dataset.closeDialog).close()),
       );
       all("dialog").forEach((dialog) => {
-        dialog.addEventListener("close", () => {
+        on(dialog, "close", () => {
           this.updateUI();
           this.scheduleBot();
         });
-        dialog.addEventListener("click", (e) => {
+        on(dialog, "click", (e) => {
           if (e.target !== dialog) return;
           const box = dialog.getBoundingClientRect();
           if (
@@ -1441,12 +1485,12 @@
         });
       });
       all("[data-new-setup]").forEach((b) =>
-        b.addEventListener("click", () => {
+        on(b, "click", () => {
           this.newSetup = b.dataset.newSetup;
           this.updateNewSetup();
         }),
       );
-      $("confirm-new-game").addEventListener("click", () => {
+      on($("confirm-new-game"), "click", () => {
         $("new-game-dialog").close();
         if (this.panel) this.closePanel();
         const custom = this.newSetup === "custom" && this.custom;
@@ -1455,14 +1499,14 @@
           custom ? custom.startingTeam : 0,
         );
       });
-      $("play-again").addEventListener("click", () => {
+      on($("play-again"), "click", () => {
         $("winner-dialog").close();
         this.startMatch(
           this.custom ? this.custom.pieces : R.standardSetup(),
           this.custom ? this.custom.startingTeam : 0,
         );
       });
-      document.addEventListener("keydown", (e) => {
+      on(document, "keydown", (e) => {
         if (e.key === "Escape") {
           if (this.dialogOpen()) return;
           if (this.panel) this.closePanel();
@@ -1494,18 +1538,57 @@
           this.updateEditor();
         }
       });
-      window.addEventListener("beforeunload", () => this.save());
-      document.addEventListener("visibilitychange", () => {
+      on(window, "beforeunload", () => this.save());
+      on(document, "visibilitychange", () => {
         if (document.hidden) {
           this.clearBot();
           this.save();
         } else this.scheduleBot();
       });
     }
+
+    destroy() {
+      this.destroyed = true;
+      this.ready = false;
+      this.clearBot();
+      clearTimeout(this.toastTimer);
+      this.save();
+      if (this.view) this.view.destroy();
+      if ($("toast")) $("toast").hidden = true;
+      $("app").classList.remove("panel-open", "editing");
+      document.body.classList.remove("panel-open", "editing");
+      all("dialog").forEach((dialog) => {
+        if (dialog.open) dialog.close();
+      });
+    }
   }
 
-  const controller = new GameController();
-  // Small, useful console API for inspecting a match or creating positions.
-  window.HexCheckers = controller;
-  controller.init();
+  // The page ships one shell for both modes. mode.js starts the app the URL
+  // asks for and tears it down before the other mode takes the board.
+  const app = {
+    controller: null,
+    abort: null,
+    start() {
+      if (this.controller) return;
+      this.abort = new AbortController();
+      activeSignal = this.abort.signal;
+      this.controller = new GameController();
+      // Small, useful console API for inspecting a match or creating positions.
+      window.HexCheckers = this.controller;
+      this.controller.init();
+    },
+    stop() {
+      if (!this.controller) return;
+      const controller = this.controller;
+      this.controller = null;
+      if (this.abort) {
+        this.abort.abort();
+        this.abort = null;
+      }
+      activeSignal = null;
+      window.HexCheckers = null;
+      controller.destroy();
+    },
+  };
+  window.HexCheckersApp = app;
 })();

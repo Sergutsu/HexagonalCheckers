@@ -6,6 +6,11 @@
   const D = window.DominionRules;
   const $ = (id) => document.getElementById(id);
   const all = (selector) => [...document.querySelectorAll(selector)];
+  // Listeners belong to the running mode, so the switcher can stop the board
+  // cleanly when the player returns to checkers.
+  let activeSignal = null;
+  const on = (target, type, handler, options = {}) =>
+    target.addEventListener(type, handler, { ...options, signal: activeSignal });
   const STORAGE_KEY = "triad-dominion-v1";
   const UNIT = 24;
   const SQRT3 = Math.sqrt(3);
@@ -34,6 +39,7 @@
     constructor(controller) {
       this.controller = controller;
       this.host = $("board-host");
+      this.destroyed = false;
       this.zoom = 1;
       this.pan = { x: 0, y: 0 };
       this.hover = null;
@@ -55,6 +61,15 @@
         preference: "webgl",
         powerPreference: "low-power",
       });
+      if (this.destroyed) {
+        try {
+          this.app.destroy({ removeView: true }, { children: true });
+        } catch (_) {
+          /* The player switched modes while the context was starting. */
+        }
+        this.app = null;
+        return;
+      }
       this.app.canvas.setAttribute("aria-hidden", "true");
       this.host.appendChild(this.app.canvas);
       this.root = new PIXI.Container();
@@ -438,7 +453,7 @@
         const b = canvas.getBoundingClientRect();
         return { x: e.clientX - b.left, y: e.clientY - b.top };
       };
-      canvas.addEventListener("pointerdown", (e) => {
+      on(canvas, "pointerdown", (e) => {
         if (e.button !== 0 && e.button !== 1) return;
         this.host.focus({ preventScroll: true });
         const p = local(e);
@@ -469,7 +484,7 @@
           };
         }
       });
-      canvas.addEventListener("pointermove", (e) => {
+      on(canvas, "pointermove", (e) => {
         const p = local(e);
         const pressed = this.pointers.get(e.pointerId);
         if (pressed) {
@@ -529,19 +544,19 @@
         if (this.pointers.size < 2) this.pinch = null;
         this.updateCursor();
       };
-      canvas.addEventListener("pointerup", (e) => finish(e, false));
-      canvas.addEventListener("pointercancel", (e) => finish(e, true));
-      canvas.addEventListener("pointerleave", () => {
+      on(canvas, "pointerup", (e) => finish(e, false));
+      on(canvas, "pointercancel", (e) => finish(e, true));
+      on(canvas, "pointerleave", () => {
         if (!this.pointers.size) {
           this.hover = null;
           this.updateHighlights();
         }
       });
-      canvas.addEventListener("contextmenu", (e) => {
+      on(canvas, "contextmenu", (e) => {
         e.preventDefault();
         this.controller.clearSelection();
       });
-      canvas.addEventListener(
+      on(canvas, 
         "wheel",
         (e) => {
           e.preventDefault();
@@ -553,7 +568,7 @@
         },
         { passive: false },
       );
-      this.host.addEventListener("keydown", (e) => {
+      on(this.host, "keydown", (e) => {
         const directions = {
           ArrowLeft: [-1, 0],
           ArrowRight: [1, 0],
@@ -582,10 +597,38 @@
           );
         }
       });
-      this.host.addEventListener("blur", () => {
+      on(this.host, "blur", () => {
         this.keyboardCell = null;
         this.updateHighlights();
       });
+    }
+
+    // Releases the WebGL context and the canvas so the other mode can reuse
+    // the same board host.
+    destroy() {
+      this.destroyed = true;
+      if (this.resizeObserver) {
+        this.resizeObserver.disconnect();
+        this.resizeObserver = null;
+      }
+      this.stopAnimations();
+      if (this.app) {
+        try {
+          this.app.destroy({ removeView: true }, { children: true });
+        } catch (_) {
+          /* The context may already be gone; nothing left to release. */
+        }
+        this.app = null;
+      }
+      this.objects.clear();
+      this.tweens = [];
+      this.root = null;
+      this.tiles = null;
+      this.highlights = null;
+      this.pieceLayer = null;
+      this.overlay = null;
+      this.ghost = null;
+      $("loading").hidden = false;
     }
   }
 
@@ -602,6 +645,7 @@
       this.paused = false;
       this.busy = false;
       this.ready = false;
+      this.destroyed = false;
       this.botTimer = null;
       this.newWin = this.settings.win;
       this.load();
@@ -613,11 +657,13 @@
     async init() {
       try {
         await this.view.init();
+        if (this.destroyed) return;
         this.ready = true;
         this.view.syncPieces();
         this.updateUI();
         this.scheduleBot();
       } catch (error) {
+        if (this.destroyed) return;
         console.error("Unable to initialize the board:", error);
         $("loading").classList.add("error");
         $("loading").textContent =
@@ -1101,27 +1147,27 @@
     }
 
     bindUI() {
-      $("brand-link").addEventListener("click", (e) => {
+      on($("brand-link"), "click", (e) => {
         e.preventDefault();
         if (this.ready) this.view.fit();
       });
-      $("help-button").addEventListener("click", () => this.openDialog("help-dialog"));
-      $("drop-mode").addEventListener("click", () => this.setMode("drop"));
-      $("move-mode").addEventListener("click", () => this.setMode("move"));
-      $("undo-button").addEventListener("click", () => this.undo());
-      $("pause-button").addEventListener("click", () => this.togglePause());
-      $("new-game-button").addEventListener("click", () => this.newGame());
-      $("zoom-in").addEventListener("click", () => {
+      on($("help-button"), "click", () => this.openDialog("help-dialog"));
+      on($("drop-mode"), "click", () => this.setMode("drop"));
+      on($("move-mode"), "click", () => this.setMode("move"));
+      on($("undo-button"), "click", () => this.undo());
+      on($("pause-button"), "click", () => this.togglePause());
+      on($("new-game-button"), "click", () => this.newGame());
+      on($("zoom-in"), "click", () => {
         if (this.ready) this.view.setZoom(this.view.zoom * 1.25);
       });
-      $("zoom-out").addEventListener("click", () => {
+      on($("zoom-out"), "click", () => {
         if (this.ready) this.view.setZoom(this.view.zoom / 1.25);
       });
-      $("fit-view").addEventListener("click", () => {
+      on($("fit-view"), "click", () => {
         if (this.ready) this.view.fit();
       });
       all(".seat-type").forEach((b) =>
-        b.addEventListener("click", () => {
+        on(b, "click", () => {
           const team = Number(b.dataset.team);
           this.setController(
             team,
@@ -1130,28 +1176,28 @@
         }),
       );
       all("[data-new-win]").forEach((b) =>
-        b.addEventListener("click", () => {
+        on(b, "click", () => {
           this.newWin = b.dataset.newWin;
           this.updateNewWin();
         }),
       );
-      $("confirm-new-game").addEventListener("click", () => {
+      on($("confirm-new-game"), "click", () => {
         $("new-game-dialog").close();
         this.startMatch(this.newWin);
       });
-      $("play-again").addEventListener("click", () => {
+      on($("play-again"), "click", () => {
         $("winner-dialog").close();
         this.startMatch(this.game.win);
       });
       all("[data-close-dialog]").forEach((b) =>
-        b.addEventListener("click", () => $(b.dataset.closeDialog).close()),
+        on(b, "click", () => $(b.dataset.closeDialog).close()),
       );
       all("dialog").forEach((dialog) => {
-        dialog.addEventListener("close", () => {
+        on(dialog, "close", () => {
           this.updateUI();
           this.scheduleBot();
         });
-        dialog.addEventListener("click", (e) => {
+        on(dialog, "click", (e) => {
           if (e.target !== dialog) return;
           const box = dialog.getBoundingClientRect();
           if (
@@ -1163,7 +1209,7 @@
             dialog.close();
         });
       });
-      document.addEventListener("keydown", (e) => {
+      on(document, "keydown", (e) => {
         if (e.key === "Escape") {
           if (this.dialogOpen()) return;
           this.clearSelection();
@@ -1188,18 +1234,54 @@
         else if (e.key === "?" || key === "h") this.openDialog("help-dialog");
         else if (e.key === "0") this.view.fit();
       });
-      window.addEventListener("beforeunload", () => this.save());
-      document.addEventListener("visibilitychange", () => {
+      on(window, "beforeunload", () => this.save());
+      on(document, "visibilitychange", () => {
         if (document.hidden) {
           this.clearBot();
           this.save();
         } else this.scheduleBot();
       });
     }
+
+    destroy() {
+      this.destroyed = true;
+      this.ready = false;
+      this.clearBot();
+      clearTimeout(this.toastTimer);
+      this.save();
+      if (this.view) this.view.destroy();
+      if ($("toast")) $("toast").hidden = true;
+      all("dialog").forEach((dialog) => {
+        if (dialog.open) dialog.close();
+      });
+    }
   }
 
-  const controller = new DominionController();
-  // Small console API for inspecting a match.
-  window.TriadDominion = controller;
-  controller.init();
+  // mode.js starts this app when the URL selects Triad Dominion.
+  const app = {
+    controller: null,
+    abort: null,
+    start() {
+      if (this.controller) return;
+      this.abort = new AbortController();
+      activeSignal = this.abort.signal;
+      this.controller = new DominionController();
+      // Small console API for inspecting a match.
+      window.TriadDominion = this.controller;
+      this.controller.init();
+    },
+    stop() {
+      if (!this.controller) return;
+      const controller = this.controller;
+      this.controller = null;
+      if (this.abort) {
+        this.abort.abort();
+        this.abort = null;
+      }
+      activeSignal = null;
+      window.TriadDominion = null;
+      controller.destroy();
+    },
+  };
+  window.HexDominionApp = app;
 })();

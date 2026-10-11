@@ -39,11 +39,14 @@ jobs:
         run: |
           rm -rf _site
           mkdir _site
-          cp -R index.html dominion.html styles.css dominion.css assets scripts vendor _site/
+          cp -R index.html styles.css dominion.css assets scripts vendor _site/
           touch _site/.nojekyll
+      # Do not set the enablement input here. Creating a Pages site is a
+      # repository-administration operation, and the automatic GITHUB_TOKEN
+      # can never perform it ("Resource not accessible by integration").
+      # Enable Pages once in Settings -> Pages -> Source: GitHub Actions,
+      # after which this step simply reads the existing configuration.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

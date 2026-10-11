@@ -9,7 +9,10 @@ const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 test("all shipped JavaScript parses without a transpiler", () => {
   for (const file of [
     "scripts/app.js",
+    "scripts/dominion-app.js",
+    "scripts/mode.js",
     "scripts/rules.js",
+    "scripts/dominion-rules.js",
     "server.cjs",
     "vendor/pixi.min.js",
   ]) {
@@ -24,7 +27,7 @@ test("all shipped JavaScript parses without a transpiler", () => {
 test("every HTML entrypoint asset is local and included in the repository", () => {
   const urls = [...html.matchAll(/(?:src|href)="([^"#]+)"/g)]
     .map((m) => m[1])
-    .filter((url) => url !== "./");
+    .filter((url) => url !== "./" && !/[?#]/.test(url));
   assert.ok(urls.includes("vendor/pixi.min.js"));
   for (const url of urls) {
     assert.equal(

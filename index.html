@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-mode="checkers">
   <head>
     <meta charset="utf-8" />
     <meta
@@ -9,15 +9,18 @@
     <meta name="theme-color" content="#11161b" />
     <meta
       name="description"
-      content="Three colors. One board. A board-first, three-player hexagonal checkers game, powered by PixiJS. Play solo, with friends, or create your own starting position."
+      content="HEX — a three-player hexagonal board game. Play Checkers or Triad Dominion on one 397-hex arena. Powered by PixiJS, no build step."
     />
-    <title>HEX — Three-player checkers</title>
+    <title>HEX — Three-player hexagonal checkers</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="dominion.css" />
     <script defer src="vendor/pixi.min.js"></script>
     <script defer src="scripts/rules.js"></script>
+    <script defer src="scripts/dominion-rules.js"></script>
     <script defer src="scripts/app.js"></script>
+    <script defer src="scripts/dominion-app.js"></script>
+    <script defer src="scripts/mode.js"></script>
   </head>
   <body>
     <svg
@@ -104,28 +107,29 @@
 
     <div id="app" class="app-shell">
       <header class="topbar">
-        <a
-          class="brand"
-          href="./"
-          aria-label="HEX Checkers home"
-          id="brand-link"
-        >
+        <a class="brand" href="./" aria-label="HEX home" id="brand-link">
           <svg class="brand-mark" viewBox="0 0 42 42" aria-hidden="true">
             <path fill="#91e5c5" d="m21 2 9 5v10l-9 5-9-5V7Z" />
             <path fill="#b7a1ec" d="m10 20 9 5v10l-9 5-9-5V25Z" />
             <path fill="#f59b85" d="m32 20 9 5v10l-9 5-9-5V25Z" />
           </svg>
           <span class="brand-word"
-            >HEX<span class="brand-sub">CHECKERS</span></span
+            >HEX<span class="brand-sub"
+              ><span class="only-checkers">CHECKERS</span
+              ><span class="only-dominion">TRIAD DOMINION</span></span
+            ></span
           >
         </a>
         <nav class="mode-switch" aria-label="Game modes">
-          <a href="./" aria-current="page">Checkers</a>
-          <a href="dominion.html"><span class="mode-short">Triad </span>Dominion</a>
+          <a href="./" data-mode-link="checkers" aria-current="page">Checkers</a>
+          <a href="?game=dominion" data-mode-link="dominion"
+            ><span class="mode-short">Triad </span>Dominion</a
+          >
         </nav>
         <div class="edition">
           <span>THREE PLAYERS</span><span class="edition-slash">/</span
-          ><span>ONE BOARD</span>
+          ><span class="only-checkers">ONE BOARD</span
+          ><span class="only-dominion">DROP &amp; JUMP</span>
         </div>
         <nav class="top-actions" aria-label="Game tools">
           <span class="local-badge"><span></span> LOCAL PLAY</span>
@@ -133,12 +137,12 @@
             <svg class="icon"><use href="#i-help" /></svg
             ><span>How to play</span>
           </button>
-          <button class="text-button" id="edit-button">
+          <button class="text-button only-checkers" id="edit-button">
             <svg class="icon"><use href="#i-edit" /></svg
             ><span>Edit board</span>
           </button>
           <button
-            class="icon-button"
+            class="icon-button only-checkers"
             id="settings-button"
             title="Game settings"
             aria-label="Game settings"
@@ -149,26 +153,31 @@
         </nav>
       </header>
 
-      <main id="arena" class="arena" aria-label="Hexagonal checkers arena">
+      <main id="arena" class="arena" aria-label="Hexagonal arena">
         <div class="game-status" id="game-status">
           <div class="eyebrow">
             <span id="turn-dot" class="status-dot"></span
             ><span id="turn-label">MINT'S TURN</span
-            ><span id="chain-badge" class="chain-badge" hidden>CHAIN JUMP</span>
+            ><span id="chain-badge" class="chain-badge" hidden>CHAIN JUMP</span
+            ><span id="mode-badge" class="chain-badge" hidden></span>
           </div>
           <h1 id="status-title">Your move.</h1>
           <p id="status-description">Select a mint pawn to begin.</p>
         </div>
         <div class="board-meta" aria-label="Board specifications">
           <span class="eyebrow">THE ARENA</span><span>12 hexes per side</span
-          ><span class="meta-sub">397 places to make your move.</span>
+          ><span class="meta-sub only-checkers"
+            >397 places to make your move.</span
+          ><span class="meta-sub only-dominion" id="win-note"
+            >Last colour standing wins.</span
+          >
         </div>
         <div
           id="board-host"
           class="board-host"
           tabindex="0"
           role="application"
-          aria-label="397-hex checkers board. Click a pawn, then a highlighted hex. Arrow keys move the focus; Enter selects. Scroll to zoom; drag to pan."
+          aria-label="397-hex board. Click a piece or hex to play. Arrow keys move the focus; Enter selects. Scroll to zoom; drag to pan."
         >
           <div class="loading" id="loading">
             <span class="loading-hex"></span
@@ -176,9 +185,37 @@
           </div>
         </div>
         <div class="arena-bottom">
+          <div
+            class="action-switch only-dominion"
+            role="group"
+            aria-label="Choose your action"
+          >
+            <button
+              id="drop-mode"
+              class="action-option selected"
+              aria-pressed="true"
+              title="Drop a new piece (D)"
+            >
+              <svg class="icon"><use href="#i-plus" /></svg>
+              <span>Drop</span><kbd>D</kbd>
+            </button>
+            <button
+              id="move-mode"
+              class="action-option"
+              aria-pressed="false"
+              title="Move one of your pieces (M)"
+            >
+              <svg class="icon"><use href="#i-arrow" /></svg>
+              <span>Move</span><kbd>M</kbd>
+            </button>
+          </div>
           <div class="board-hint" id="board-hint">
             <svg class="icon"><use href="#i-star" /></svg
-            ><span>Centre + edges upgrade your pawns</span>
+            ><span class="only-checkers"
+              >Centre + edges upgrade your pawns</span
+            ><span class="only-dominion" id="hint-text"
+              >Enemy pieces in a closed line flip to you.</span
+            >
           </div>
           <div class="view-tools" aria-label="Board zoom controls">
             <button
@@ -213,7 +250,9 @@
 
       <footer class="game-dock">
         <div class="move-counter">
-          <span class="eyebrow">MOVE</span><strong id="move-number">01</strong
+          <span class="eyebrow only-checkers">MOVE</span
+          ><span class="eyebrow only-dominion">TURN</span
+          ><strong id="move-number">01</strong
           ><span class="counter-sub" id="match-type">YOU + 2 BOTS</span>
         </div>
         <div
@@ -239,7 +278,10 @@
               </button>
             </div>
             <div class="player-count">
-              <strong id="count-0">16</strong><span>PAWNS</span>
+              <strong id="count-0">16</strong
+              ><span class="only-checkers">PAWNS</span
+              ><span class="only-dominion">PIECES</span
+              ><small class="only-dominion" id="kings-0">0 kings</small>
             </div>
           </article>
           <article class="player-card" id="player-1" style="--team: #f59b85">
@@ -257,7 +299,10 @@
               </button>
             </div>
             <div class="player-count">
-              <strong id="count-1">16</strong><span>PAWNS</span>
+              <strong id="count-1">16</strong
+              ><span class="only-checkers">PAWNS</span
+              ><span class="only-dominion">PIECES</span
+              ><small class="only-dominion" id="kings-1">0 kings</small>
             </div>
           </article>
           <article class="player-card" id="player-2" style="--team: #b7a1ec">
@@ -275,7 +320,10 @@
               </button>
             </div>
             <div class="player-count">
-              <strong id="count-2">16</strong><span>PAWNS</span>
+              <strong id="count-2">16</strong
+              ><span class="only-checkers">PAWNS</span
+              ><span class="only-dominion">PIECES</span
+              ><small class="only-dominion" id="kings-2">0 kings</small>
             </div>
           </article>
         </div>
@@ -311,7 +359,7 @@
     </div>
 
     <aside
-      class="side-panel"
+      class="side-panel only-checkers"
       id="side-panel"
       aria-label="Game configuration"
       hidden
@@ -490,7 +538,9 @@
 
     <dialog id="help-dialog" class="modal help-modal">
       <div class="modal-top">
-        <span class="eyebrow">FIELD MANUAL / 01</span
+        <span class="eyebrow"
+          ><span class="only-checkers">FIELD MANUAL / 01</span
+          ><span class="only-dominion">FIELD MANUAL / 02</span></span
         ><button
           class="icon-button"
           data-close-dialog="help-dialog"
@@ -499,59 +549,130 @@
           <svg class="icon"><use href="#i-close" /></svg>
         </button>
       </div>
-      <h2>Three sides.<br />Six directions.</h2>
-      <p class="modal-lead">Checkers, with a little more room to think.</p>
-      <div class="rule-list">
-        <div class="rule-row">
-          <span class="rule-number">01</span>
-          <div>
-            <h3>Make your move</h3>
-            <p>
-              A pawn moves to any adjacent empty hex, in any of the six
-              directions.
-            </p>
+      <div class="only-checkers">
+        <h2>Three sides.<br />Six directions.</h2>
+        <p class="modal-lead">Checkers, with a little more room to think.</p>
+        <div class="rule-list">
+          <div class="rule-row">
+            <span class="rule-number">01</span>
+            <div>
+              <h3>Make your move</h3>
+              <p>
+                A pawn moves to any adjacent empty hex, in any of the six
+                directions.
+              </p>
+            </div>
+          </div>
+          <div class="rule-row">
+            <span class="rule-number">02</span>
+            <div>
+              <h3>Jump to capture</h3>
+              <p>
+                Hop over an opponent into an empty hex to take their pawn.
+                Captures are mandatory. If another jump is available, keep going
+                with the same pawn.
+              </p>
+            </div>
+          </div>
+          <div class="rule-row">
+            <span class="rule-number">03</span>
+            <div>
+              <h3>
+                Find your superpower
+                <svg class="icon"><use href="#i-star" /></svg>
+              </h3>
+              <p>
+                Land on the central hex or any outer-edge hex to upgrade.
+                Superpawns glide any distance along the six directions, and can
+                capture one opponent along a clear ray.
+              </p>
+            </div>
+          </div>
+          <div class="rule-row">
+            <span class="rule-number">04</span>
+            <div>
+              <h3>Be the last color standing</h3>
+              <p>
+                Capture both opposing armies to win. Empty or blocked sides are
+                skipped. If no color can move, the match is a draw.
+              </p>
+            </div>
           </div>
         </div>
-        <div class="rule-row">
-          <span class="rule-number">02</span>
-          <div>
-            <h3>Jump to capture</h3>
-            <p>
-              Hop over an opponent into an empty hex to take their pawn.
-              Captures are mandatory. If another jump is available, keep going
-              with the same pawn.
-            </p>
-          </div>
-        </div>
-        <div class="rule-row">
-          <span class="rule-number">03</span>
-          <div>
-            <h3>
-              Find your superpower
-              <svg class="icon"><use href="#i-star" /></svg>
-            </h3>
-            <p>
-              Land on the central hex or any outer-edge hex to upgrade.
-              Superpawns glide any distance along the six directions, and can
-              capture one opponent along a clear ray.
-            </p>
-          </div>
-        </div>
-        <div class="rule-row">
-          <span class="rule-number">04</span>
-          <div>
-            <h3>Be the last color standing</h3>
-            <p>
-              Capture both opposing armies to win. Empty or blocked sides are
-              skipped. If no color can move, the match is a draw.
-            </p>
-          </div>
+        <div class="keyboard-legend">
+          <span><kbd>U</kbd> Undo</span><span><kbd>E</kbd> Edit</span
+          ><span><kbd>Space</kbd> Pause bots</span
+          ><span><kbd>0</kbd> Fit view</span>
         </div>
       </div>
-      <div class="keyboard-legend">
-        <span><kbd>U</kbd> Undo</span><span><kbd>E</kbd> Edit</span
-        ><span><kbd>Space</kbd> Pause bots</span
-        ><span><kbd>0</kbd> Fit view</span>
+      <div class="only-dominion">
+        <h2>Flip. Jump.<br />Crown.</h2>
+        <p class="modal-lead">Reversi territory meets hex checkers.</p>
+        <div class="rule-list">
+          <div class="rule-row">
+            <span class="rule-number">01</span>
+            <div>
+              <h3>Take one action</h3>
+              <p>
+                Every turn you either <strong>drop</strong> a new piece or
+                <strong>move</strong> one of yours. Never both.
+              </p>
+            </div>
+          </div>
+          <div class="rule-row">
+            <span class="rule-number">02</span>
+            <div>
+              <h3>Drop to flip</h3>
+              <p>
+                Place a piece on any empty hex. Every enemy run trapped between
+                it and another of your pieces flips to your colour, in all six
+                directions at once.
+              </p>
+            </div>
+          </div>
+          <div class="rule-row">
+            <span class="rule-number">03</span>
+            <div>
+              <h3>Move to capture</h3>
+              <p>
+                Step to an adjacent empty hex, or jump an adjacent enemy into
+                the empty hex beyond. The jumped piece is removed for good. Men
+                move forward only.
+              </p>
+            </div>
+          </div>
+          <div class="rule-row">
+            <span class="rule-number">04</span>
+            <div>
+              <h3>
+                Crown on the far edge
+                <svg class="icon"><use href="#i-star" /></svg>
+              </h3>
+              <p>
+                A man that walks or jumps onto an edge hex outside its home edge
+                becomes a King. Kings move and jump in all six directions. Drops
+                never crown.
+              </p>
+            </div>
+          </div>
+          <div class="rule-row">
+            <span class="rule-number">05</span>
+            <div>
+              <h3>Win the board</h3>
+              <p>
+                Last colour with pieces wins. In a <strong>quick match</strong>,
+                the first colour to hold all seven central hexes wins. If the
+                board fills, or 40 turns pass without a drop or capture, the
+                most pieces wins.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="keyboard-legend">
+          <span><kbd>D</kbd> Drop</span><span><kbd>M</kbd> Move</span
+          ><span><kbd>U</kbd> Undo</span
+          ><span><kbd>Space</kbd> Pause bots</span>
+        </div>
       </div>
       <button class="primary-button full" data-close-dialog="help-dialog">
         Got it. Let's play.<svg class="icon"><use href="#i-arrow" /></svg>
@@ -569,11 +690,12 @@
           <svg class="icon"><use href="#i-close" /></svg>
         </button>
       </div>
-      <h2>Back to the board.</h2>
+      <h2 class="only-checkers">Back to the board.</h2>
+      <h2 class="only-dominion">Choose your victory.</h2>
       <p class="modal-lead" id="new-game-description">
         Choose your starting formation.
       </p>
-      <div class="new-setup-options">
+      <div class="new-setup-options only-checkers">
         <button data-new-setup="classic" class="selected">
           <span class="setup-dots"><i></i><i></i><i></i></span
           ><strong>Classic corners</strong><small>16 pawns per color</small
@@ -581,6 +703,17 @@
         ><button data-new-setup="custom" id="custom-option">
           <svg class="icon"><use href="#i-edit" /></svg
           ><strong>Your setup</strong><small>Last custom formation</small
+          ><svg class="icon"><use href="#i-check" /></svg>
+        </button>
+      </div>
+      <div class="new-setup-options only-dominion">
+        <button data-new-win="last-standing" class="selected" aria-pressed="true">
+          <span class="setup-dots"><i></i><i></i><i></i></span
+          ><strong>Classic</strong><small>Last colour standing</small
+          ><svg class="icon"><use href="#i-check" /></svg>
+        </button><button data-new-win="centre" aria-pressed="false">
+          <svg class="icon"><use href="#i-star" /></svg
+          ><strong>Quick</strong><small>Hold the seven central hexes</small
           ><svg class="icon"><use href="#i-check" /></svg>
         </button>
       </div>
@@ -611,6 +744,7 @@
       <p class="modal-lead" id="winner-description">
         One color left. Well played.
       </p>
+      <p class="winner-tally only-dominion" id="winner-tally"></p>
       <button class="primary-button full" id="play-again">
         One more round<svg class="icon"><use href="#i-arrow" /></svg></button
       ><button

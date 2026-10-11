@@ -1,5 +1,12 @@
-/* Triad Dominion additions. Loaded after styles.css by dominion.html;
-   index.html loads it too so the shared mode switch looks the same on both pages. */
+/* Shared additions for the single-page HEX game: the mode switch and the
+   Triad Dominion bits that live alongside the checkers shell. */
+
+/* index.html ships one shell for both modes. These classes reveal only the
+   parts that belong to the mode selected in <html data-mode="...">. */
+html[data-mode="checkers"] .only-dominion,
+html[data-mode="dominion"] .only-checkers {
+  display: none !important;
+}
 
 .mode-switch {
   display: inline-flex;
