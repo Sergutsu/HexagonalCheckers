@@ -1,0 +1,134 @@
+/* Triad Dominion additions. Loaded after styles.css by dominion.html;
+   index.html loads it too so the shared mode switch looks the same on both pages. */
+
+.mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #252e36;
+  border-radius: 9px;
+  background: #171d23;
+  flex-shrink: 0;
+}
+.mode-switch a {
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.mode-switch a:hover {
+  color: var(--text);
+  background: #20272e;
+}
+.mode-switch a[aria-current="page"] {
+  background: #273830;
+  color: var(--mint);
+}
+.dominion-shell .brand-sub {
+  letter-spacing: 1.6px;
+}
+
+.action-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #252e36;
+  border-radius: 9px;
+  background: #171d23;
+  pointer-events: auto;
+}
+.action-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.action-option .icon {
+  width: 15px;
+  height: 15px;
+}
+.action-option:hover:not(:disabled) {
+  color: var(--text);
+  background: #20272e;
+}
+.action-option.selected {
+  background: #273830;
+  color: var(--mint);
+}
+.action-option kbd {
+  font-size: 9px;
+  opacity: 0.7;
+}
+.action-option:disabled {
+  opacity: 0.35;
+}
+
+.dominion-shell .arena-bottom {
+  gap: 18px;
+}
+.dominion-shell .board-hint {
+  flex: 1;
+  min-width: 0;
+}
+#hint-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-count small {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  color: var(--quiet);
+  white-space: nowrap;
+}
+
+.winner-tally {
+  margin: -4px 0 18px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.new-setup-options > button small {
+  white-space: normal;
+}
+
+@media (max-width: 900px) {
+  .mode-switch a {
+    padding: 6px 9px;
+  }
+  .action-option kbd {
+    display: none;
+  }
+  .action-option {
+    padding: 7px 9px;
+  }
+}
+
+@media (max-width: 620px) {
+  .mode-switch {
+    gap: 0;
+    padding: 2px;
+  }
+  .mode-switch a {
+    padding: 5px 7px;
+    font-size: 10px;
+  }
+  .mode-switch .mode-short {
+    display: none;
+  }
+  .dominion-shell .board-hint {
+    display: none;
+  }
+}
